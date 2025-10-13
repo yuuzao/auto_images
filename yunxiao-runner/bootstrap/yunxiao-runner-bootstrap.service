@@ -1,0 +1,16 @@
+[Unit]
+Description=Yunxiao Runner first-boot bootstrap
+After=network-online.target dbus.service
+Wants=network-online.target
+ConditionPathExists=!/var/lib/yunxiao-runner-bootstrap.done
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/yunxiao-runner-bootstrap.sh
+RemainAfterExit=no
+TimeoutStartSec=0
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+[Install]
+WantedBy=multi-user.target
+
