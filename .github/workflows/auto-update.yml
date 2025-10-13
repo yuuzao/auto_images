@@ -26,7 +26,8 @@ jobs:
           # 这行命令会查找所有根目录下的文件夹，并把它们的名字转换成一个 JSON 数组格式
           # 比如 ["nginx-custom", "python-app"]
           # 它会自动忽略 .github 文件夹哦！
-          IMAGES=$(find . -maxdepth 2 -type f -name "Dockerfile" -exec dirname {} \; | sed 's|^\./||' | jq -R -s 'split("\n") | map(select(length > 0))')
+          # 使用更简单的方法生成JSON数组，不依赖jq
+          IMAGES=$(find . -maxdepth 2 -type f -name "Dockerfile" -exec dirname {} \; | sed 's|^\./||' | grep -v '^$' | tr '\n' ',' | sed 's/,$//' | sed 's/^/[/;s/$/]/')
           echo "images=${IMAGES}" >> $GITHUB_OUTPUT
 
   # -------------------------------------------------------------
