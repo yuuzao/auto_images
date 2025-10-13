@@ -1,0 +1,58 @@
+version: "3.8"
+
+services:
+  yunxiao-runner:
+    image: ${DOCKERHUB_USERNAME:-your-username}/yunxiao-runner:latest
+    container_name: yunxiao-runner
+    # Requires Sysbox runtime installed on the Docker host
+    runtime: sysbox-runc
+    restart: unless-stopped
+
+    # Persist runner data and inner Docker engine data
+    volumes:
+      - yunxiao-runner-data:/root/yunxiao
+      - docker-data:/var/lib/docker
+      # Optionally provide the Aliyun Flow one-line installer as a script
+      # Uncomment after creating ./runner-install.sh
+      # - ./runner-install.sh:/root/runner-install.sh:ro
+
+    environment:
+      TZ: Asia/Shanghai
+      # Preferred: supply parameters individually; bootstrap will assemble installer command
+      # DO NOT commit secrets; put real values into an untracked .env file.
+      # Optional explicit installer URL; if omitted, it will derive from YUNXIAO_PKG_ENDPOINT
+      # YUNXIAO_INSTALLER_URL: "http://agent-install-cn-beijing.oss-cn-beijing.aliyuncs.com/install_linux.sh"
+      YUNXIAO_VERSION: "v0.3.2"
+      YUNXIAO_PKG_ENDPOINT: "http://agent-install-cn-beijing.oss-cn-beijing.aliyuncs.com"
+      YUNXIAO_TENANT: "be-xxxxxxxxxxxxxxxxxxxxxxxx"   # required
+      YUNXIAO_REGISTER_TOKEN: "REDACTED"               # required secret
+      YUNXIAO_WONDER_ENDPOINT: "https://devops-build-new.aliyuncs.com"
+      YUNXIAO_SCAN_INTERVAL: "5"
+      YUNXIAO_CONCURRENCY: "50"
+      # Optional extras:
+      # YUNXIAO_RUNNER_GROUP_UUID: "BkU9un6vlg9lCRQv"
+      # YUNXIAO_INSTANCE_ID: "i-xxx"
+      # YUNXIAO_INSTANCE_NAME: "runner-01"
+      # YUNXIAO_AUTO_UPGRADE: "true"
+
+      # Alternatively, pass the full one-line installer directly (takes precedence):
+      # YUNXIAO_INSTALL_CMD: >-
+      #   mkdir -p /tmp/aliyun/yunxiao-runner && 
+      #   wget http://agent-install-cn-beijing.oss-cn-beijing.aliyuncs.com/install_linux.sh -O /tmp/aliyun/yunxiao-runner/install.sh && 
+      #   sh /tmp/aliyun/yunxiao-runner/install.sh -v 'v0.3.2' -e 'http://agent-install-cn-beijing.oss-cn-beijing.aliyuncs.com' -t 'be-xxxxxxxxxxxxxxxxxxxxxxxx' -a '$YOUR_TOKEN' -w 'https://devops-build-new.aliyuncs.com' -s '5' -c '50' -r 'BkU9un6vlg9lCRQv'
+
+    # Systemd friendliness inside container
+    tmpfs:
+      - /run
+      - /run/lock
+
+    healthcheck:
+      test: ["CMD-SHELL", "systemctl is-active docker || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+volumes:
+  yunxiao-runner-data:
+  docker-data:

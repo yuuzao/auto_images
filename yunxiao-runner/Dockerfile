@@ -10,7 +10,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-       systemd systemd-sysv dbus sudo ca-certificates curl gnupg \
+       systemd systemd-sysv dbus sudo ca-certificates curl wget gnupg \
        iproute2 iputils-ping procps iptables pigz \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
@@ -28,6 +28,8 @@ RUN set -eux; \
     done; \
     mkdir -p /etc/systemd/journald.conf.d; \
     printf "[Journal]\nStorage=volatile\nForwardToConsole=yes\nTTYPath=/dev/console\n" > /etc/systemd/journald.conf.d/99-forward-to-console.conf
+
+# The Yunxiao installer will be downloaded at runtime by the bootstrap script
 
 # Install Docker Engine (dockerd), CLI, Buildx, and Compose from Docker's repo
 RUN set -eux; \

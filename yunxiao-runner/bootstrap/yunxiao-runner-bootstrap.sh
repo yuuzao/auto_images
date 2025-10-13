@@ -14,6 +14,30 @@ already_installed() {
   return 1
 }
 
+download_installer() {
+  # Determine installer URL: prefer explicit YUNXIAO_INSTALLER_URL, else derive from pkg endpoint, else fallback
+  local dst="/tmp/aliyun/yunxiao-runner/install.sh"
+  local base="${YUNXIAO_PKG_ENDPOINT:-}"
+  local url="${YUNXIAO_INSTALLER_URL:-}"
+  mkdir -p /tmp/aliyun/yunxiao-runner
+  if [[ -z "$url" ]]; then
+    if [[ -n "$base" ]]; then
+      # strip trailing slash if any and append installer path
+      url="${base%/}/install_linux.sh"
+    else
+      url="http://agent-install-cn-beijing.oss-cn-beijing.aliyuncs.com/install_linux.sh"
+    fi
+  fi
+  log "Downloading installer from $url"
+  if command -v wget >/dev/null 2>&1; then
+    wget -t 3 -O "$dst" "$url"
+  else
+    curl -fsSL "$url" -o "$dst"
+  fi
+  chmod +x "$dst" || true
+  echo "$dst"
+}
+
 ensure_docker() {
   log "Ensuring Docker Engine is enabled and running"
   # Enable services if unit files exist
@@ -38,6 +62,39 @@ ensure_docker() {
   return 0
 }
 
+run_install_from_env() {
+  # Build command from environment variables if provided
+  local required=(YUNXIAO_VERSION YUNXIAO_PKG_ENDPOINT YUNXIAO_TENANT YUNXIAO_REGISTER_TOKEN YUNXIAO_WONDER_ENDPOINT)
+  local missing=0
+  for k in "${required[@]}"; do
+    if [[ -z "${!k:-}" ]]; then
+      log "Missing required env: $k"
+      missing=1
+    fi
+  done
+  if [[ $missing -ne 0 ]]; then
+    return 1
+  fi
+  local args=(
+    -v "${YUNXIAO_VERSION}"
+    -e "${YUNXIAO_PKG_ENDPOINT}"
+    -t "${YUNXIAO_TENANT}"
+    -a "${YUNXIAO_REGISTER_TOKEN}"
+    -w "${YUNXIAO_WONDER_ENDPOINT}"
+  )
+  [[ -n "${YUNXIAO_INSTANCE_ID:-}" ]] && args+=( -i "${YUNXIAO_INSTANCE_ID}" )
+  [[ -n "${YUNXIAO_INSTANCE_NAME:-}" ]] && args+=( -n "${YUNXIAO_INSTANCE_NAME}" )
+  [[ -n "${YUNXIAO_RUNNER_GROUP_UUID:-}" ]] && args+=( -r "${YUNXIAO_RUNNER_GROUP_UUID}" )
+  [[ -n "${YUNXIAO_AUTO_UPGRADE:-}" ]] && args+=( -u "${YUNXIAO_AUTO_UPGRADE}" )
+  [[ -n "${YUNXIAO_SCAN_INTERVAL:-}" ]] && args+=( -s "${YUNXIAO_SCAN_INTERVAL}" )
+  [[ -n "${YUNXIAO_CONCURRENCY:-}" ]] && args+=( -c "${YUNXIAO_CONCURRENCY}" )
+
+  local installer
+  installer=$(download_installer)
+  log "Running install via downloaded script with env-configured args"
+  /bin/sh "$installer" "${args[@]}"
+}
+
 run_install_cmd() {
   if [[ -n "${YUNXIAO_INSTALL_CMD:-}" ]]; then
     log "Running install command from YUNXIAO_INSTALL_CMD"
@@ -51,7 +108,10 @@ run_install_cmd() {
     /bin/bash /root/runner-install.sh
     return
   fi
-  log "No install command provided. Set env YUNXIAO_INSTALL_CMD or mount /root/runner-install.sh"
+  if run_install_from_env; then
+    return
+  fi
+  log "No install command provided. Set env YUNXIAO_INSTALL_CMD, mount /root/runner-install.sh, or provide env variables (YUNXIAO_VERSION/YUNXIAO_PKG_ENDPOINT/YUNXIAO_TENANT/YUNXIAO_REGISTER_TOKEN/YUNXIAO_WONDER_ENDPOINT)."
   return 1
 }
 
