@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+[[ "${YUNXIAO_BOOTSTRAP_DEBUG:-}" == "1" ]] && set -x
 
 log() { echo "[bootstrap] $(date -u +%Y-%m-%dT%H:%M:%SZ) $*"; }
 
@@ -9,6 +10,9 @@ already_installed() {
     return 0
   fi
   if compgen -G '/root/yunxiao/*/runner/bin/*' > /dev/null; then
+    return 0
+  fi
+  if compgen -G '/usr/local/share/yunxiao-runner/*/runner' > /dev/null; then
     return 0
   fi
   return 1
@@ -92,20 +96,20 @@ run_install_from_env() {
   local installer
   installer=$(download_installer)
   log "Running install via downloaded script with env-configured args"
-  /bin/sh "$installer" "${args[@]}"
+  /bin/sh "$installer" "${args[@]}" 2>&1 | tee /dev/console
 }
 
 run_install_cmd() {
   if [[ -n "${YUNXIAO_INSTALL_CMD:-}" ]]; then
     log "Running install command from YUNXIAO_INSTALL_CMD"
     # shellcheck disable=SC2086
-    bash -lc "$YUNXIAO_INSTALL_CMD"
+    bash -lc "$YUNXIAO_INSTALL_CMD" 2>&1 | tee /dev/console
     return
   fi
   if [[ -f "/root/runner-install.sh" ]]; then
     log "Running install script at /root/runner-install.sh"
     chmod +x /root/runner-install.sh || true
-    /bin/bash /root/runner-install.sh
+    /bin/bash /root/runner-install.sh 2>&1 | tee /dev/console
     return
   fi
   if run_install_from_env; then
@@ -140,7 +144,11 @@ main() {
     log "Bootstrap complete"
     exit 0
   fi
-  run_install_cmd || { log "Install command not provided; marking bootstrap as done"; touch /var/lib/yunxiao-runner-bootstrap.done || true; exit 0; }
+  if ! run_install_cmd; then
+    log "Install command not provided; skipping installation (will retry on next start)."
+    # Do NOT create the done marker so the unit can retry after env/config changes
+    exit 0
+  fi
   enable_and_start
   touch /var/lib/yunxiao-runner-bootstrap.done || true
   log "Bootstrap complete"
