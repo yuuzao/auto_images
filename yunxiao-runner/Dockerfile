@@ -10,7 +10,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-       systemd systemd-sysv dbus sudo ca-certificates curl wget gnupg \
+       systemd systemd-sysv dbus sudo ca-certificates wget curl wget gnupg \
        iproute2 iputils-ping procps iptables pigz \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
