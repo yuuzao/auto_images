@@ -1,0 +1,75 @@
+# .github/workflows/auto-update.yml
+
+name: 自动更新并推送 Docker 镜像 (智能扫描版)
+
+on:
+  schedule:
+    - cron: '0 3 * * 0' # 每周日凌晨3点，依旧不变~
+  workflow_dispatch:
+
+jobs:
+  # -------------------------------------------------------------
+  # 新增的第一个 Job：用来动态生成 Matrix 列表
+  # -------------------------------------------------------------
+  setup-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      # 我们会把找到的目录列表，通过 'outputs' 传递给下一个 Job
+      images: ${{ steps.set-matrix.outputs.images }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 扫描目录并生成镜像列表
+        id: set-matrix
+        run: |
+          # 这行命令会查找所有根目录下的文件夹，并把它们的名字转换成一个 JSON 数组格式
+          # 比如 ["nginx-custom", "python-app"]
+          # 它会自动忽略 .github 文件夹哦！
+          IMAGES=$(find . -maxdepth 2 -type f -name "Dockerfile" -exec dirname {} \; | sed 's|^\./||' | jq -R -s 'split("\n") | map(select(length > 0))')
+          echo "images=${IMAGES}" >> $GITHUB_OUTPUT
+
+  # -------------------------------------------------------------
+  # 第二个 Job：构建和推送，现在它依赖于第一个 Job 的结果
+  # -------------------------------------------------------------
+  build-and-push:
+    name: 构建和推送 - ${{ matrix.image }}
+    # 'needs' 关键词表示，这个 Job 必须等 'setup-matrix' 成功完成后才能开始
+    needs: setup-matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 这里的魔法来啦！
+        # 我们使用 fromJSON 函数，把上一个 Job 输出的 JSON 字符串，变回一个真正的列表
+        image: ${{ fromJSON(needs.setup-matrix.outputs.images) }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: '*'
+
+      - name: 设置 Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 登录到 Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: 构建并推送 Docker 镜像
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.image }}
+          file: ./${{ matrix.image }}/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}:latest
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
