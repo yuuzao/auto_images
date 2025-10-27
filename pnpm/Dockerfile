@@ -22,29 +22,30 @@ RUN mkdir -p /pnpm-store /pnpm-cache
 ENV PNPM_HOME="/usr/local/bin"
 ENV PATH="$PNPM_HOME:$PATH"
 
-# 安装Vite和Vue相关工具
-RUN pnpm add -g vite@latest create-vue@latest vue@latest vue-router@latest
-
-# 安装TypeScript和开发工具
-RUN pnpm add -g typescript@latest tsx@latest
-
-# 安装代码质量工具
-RUN pnpm add -g eslint@latest @typescript-eslint/parser@latest @typescript-eslint/eslint-plugin@latest
-
-# 安装CSS预处理器和构建工具
-RUN pnpm add -g sass@latest
-
-# 安装UnoCSS
-RUN pnpm add -g @unocss/cli@latest
-
-# 安装常用Vue生态工具
-RUN pnpm add -g pinia@latest vue-i18n@latest
-
-# 安装图表库
-RUN pnpm add -g echarts@latest
+# 合并所有全局包安装，减少镜像层数
+RUN pnpm add -g \
+    vite@latest \
+    create-vue@latest \
+    vue@latest \
+    vue-router@latest \
+    typescript@latest \
+    tsx@latest \
+    eslint@latest \
+    @typescript-eslint/parser@latest \
+    @typescript-eslint/eslint-plugin@latest \
+    sass@latest \
+    @unocss/cli@latest \
+    pinia@latest \
+    vue-i18n@latest \
+    echarts@latest
 
 # 安装Git相关工具
 RUN apk add --no-cache git
+
+# 清理npm缓存和临时文件
+RUN npm cache clean --force && \
+    pnpm store prune && \
+    rm -rf /tmp/* /var/cache/apk/*
 
 # 验证安装
 RUN node --version && pnpm --version && vite --version && tsc --version && eslint --version
