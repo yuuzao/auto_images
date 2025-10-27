@@ -7,8 +7,23 @@ WORKDIR /app
 # 安装pnpm全局包管理器
 RUN npm install -g pnpm@latest
 
+# 手动设置pnpm全局bin目录
+RUN mkdir -p /usr/local/bin
+
+# 设置pnpm配置，优化性能和缓存
+RUN pnpm config set store-dir /pnpm-store && \
+    pnpm config set cache-dir /pnpm-cache && \
+    pnpm config set global-bin-dir /usr/local/bin
+
+# 创建pnpm存储目录
+RUN mkdir -p /pnpm-store /pnpm-cache
+
+# 设置环境变量
+ENV PNPM_HOME="/usr/local/bin"
+ENV PATH="$PNPM_HOME:$PATH"
+
 # 安装Vite和Vue相关工具
-RUN pnpm add -g vite@latest @vitejs/create-vue vue@latest vue-router@latest
+RUN pnpm add -g vite@latest create-vue@latest vue@latest vue-router@latest
 
 # 安装TypeScript和开发工具
 RUN pnpm add -g typescript@latest tsx@latest
@@ -30,17 +45,6 @@ RUN pnpm add -g echarts@latest
 
 # 安装Git相关工具
 RUN apk add --no-cache git
-
-# 设置pnpm配置，优化性能和缓存
-RUN pnpm config set store-dir /pnpm-store && \
-    pnpm config set cache-dir /pnpm-cache
-
-# 创建pnpm存储目录
-RUN mkdir -p /pnpm-store /pnpm-cache
-
-# 设置环境变量
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
 
 # 验证安装
 RUN node --version && pnpm --version && vite --version && tsc --version && eslint --version
